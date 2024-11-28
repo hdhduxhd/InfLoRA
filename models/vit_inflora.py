@@ -200,12 +200,23 @@ class Attention_LoRA(nn.Module):
         self.n_cur_matrix = 0
         self.x_matrix = torch.zeros(dim, dim)
 
+        self.keys = nn.Parameter(torch.FloatTensor(n_tasks, self.dim), requires_grad=True)
+        self.lora_A_trans_k = nn.ModuleList([nn.Linear(dim, r, bias=False) for _ in range(n_tasks)])
+        self.lora_B_trans_k = nn.ModuleList([nn.Linear(r, dim, bias=False) for _ in range(n_tasks)])
+        self.lora_A_trans_v = nn.ModuleList([nn.Linear(dim, r, bias=False) for _ in range(n_tasks)])
+        self.lora_B_trans_v = nn.ModuleList([nn.Linear(r, dim, bias=False) for _ in range(n_tasks)])
+
     def init_param(self):
         for t in range(len(self.lora_A_k)):
             nn.init.kaiming_uniform_(self.lora_A_k[t].weight, a=math.sqrt(5))
             nn.init.kaiming_uniform_(self.lora_A_v[t].weight, a=math.sqrt(5))
             nn.init.zeros_(self.lora_B_k[t].weight)
             nn.init.zeros_(self.lora_B_v[t].weight)
+
+            nn.init.kaiming_uniform_(self.lora_A_trans_k[t].weight, a=math.sqrt(5))
+            nn.init.kaiming_uniform_(self.lora_A_trans_v[t].weight, a=math.sqrt(5))
+            nn.init.zeros_(self.lora_B_trans_k[t].weight)
+            nn.init.zeros_(self.lora_B_trans_v[t].weight)
 
     def init_param_ada(self, t, r):
         self.lora_A_k[t] = nn.Linear(self.dim, r, bias=False).to(self.qkv.weight.device)
@@ -217,6 +228,17 @@ class Attention_LoRA(nn.Module):
         nn.init.kaiming_uniform_(self.lora_A_v[t].weight, a=math.sqrt(5))
         nn.init.zeros_(self.lora_B_k[t].weight)
         nn.init.zeros_(self.lora_B_v[t].weight)
+
+
+        self.lora_A_trans_k[t] = nn.Linear(self.dim, r, bias=False).to(self.qkv.weight.device)
+        self.lora_B_trans_k[t] = nn.Linear(r, self.dim, bias=False).to(self.qkv.weight.device)
+        self.lora_A_trans_v[t] = nn.Linear(self.dim, r, bias=False).to(self.qkv.weight.device)
+        self.lora_B_trans_v[t] = nn.Linear(r, self.dim, bias=False).to(self.qkv.weight.device)
+
+        nn.init.kaiming_uniform_(self.lora_A_trans_k[t].weight, a=math.sqrt(5))
+        nn.init.kaiming_uniform_(self.lora_A_trans_v[t].weight, a=math.sqrt(5))
+        nn.init.zeros_(self.lora_B_trans_k[t].weight)
+        nn.init.zeros_(self.lora_B_trans_v[t].weight)
 
     def save_attn_gradients(self, attn_gradients):
         self.attn_gradients = attn_gradients
@@ -230,7 +252,7 @@ class Attention_LoRA(nn.Module):
     def get_attention_map(self):
         return self.attention_map
     
-    def forward(self, x, task, register_hook=False, get_feat=False,get_cur_feat=False,get_x_feat=False):
+    def forward(self, x, task, register_hook=False, get_feat=False,get_cur_feat=False,get_x_feat=False,trans_knowledge=False, train=False):
         if get_feat:
             self.matrix = (self.matrix*self.n_matrix + torch.bmm(x.detach().permute(0, 2, 1), x.detach()).sum(dim=0).cpu())/(self.n_matrix + x.shape[0]*x.shape[1])
             self.n_matrix += x.shape[0]*x.shape[1]
@@ -242,6 +264,18 @@ class Attention_LoRA(nn.Module):
             # if task>=1:
             #     print("x: ", x.max())
             #     print("x_matrix: ", self.x_matrix.max())
+        if trans_knowledge:
+            x_querry = torch.mean(x,dim=1)
+            n_k = nn.functional.normalize(self.keys, dim=1)
+            q = nn.functional.normalize(x_querry, dim=1).detach()
+            cos_sim = torch.einsum('bj,kj->bk', q, n_k)
+            if train:
+                k_idx = task
+                loss = (1.0 - cos_sim[:,task]).mean()
+            else:
+                top_k = torch.topk(cos_sim, 1, dim=1)
+                k_idx = top_k.indices.squeeze(1)
+                loss = 0
 
         B, N, C = x.shape
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
@@ -249,10 +283,23 @@ class Attention_LoRA(nn.Module):
 
         # insert lora
         if task > -0.5:
+            #learning discrepancy
             weight_k = torch.stack([torch.mm(self.lora_B_k[t].weight, self.lora_A_k[t].weight) for t in range(task+1)], dim=0).sum(dim=0)
             weight_v = torch.stack([torch.mm(self.lora_B_v[t].weight, self.lora_A_v[t].weight) for t in range(task+1)], dim=0).sum(dim=0)
             k = k + F.linear(x, weight_k).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
             v = v + F.linear(x, weight_v).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
+
+            if trans_knowledge:
+                #learning similarity
+                if train:
+                    k = k + F.linear(x, torch.mm(self.lora_B_trans_k[k_idx].weight, self.lora_A_trans_k[k_idx].weight)).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
+                    v = v + F.linear(x, torch.mm(self.lora_B_trans_v[k_idx].weight, self.lora_A_trans_v[k_idx].weight)).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
+                else:
+                    select_sim_k = torch.stack([F.linear(x[i:i+1,:,:],torch.mm(self.lora_B_trans_k[k_idx[i]].weight, self.lora_A_trans_k[k_idx[i]].weight)) for i in range(x.shape[0])],dim=0)
+                    select_sim_v = torch.stack([F.linear(x[i:i+1,:,:],torch.mm(self.lora_B_trans_v[k_idx[i]].weight, self.lora_A_trans_v[k_idx[i]].weight)) for i in range(x.shape[0])],dim=0)
+                    k = k + select_sim_k.reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
+                    v = v + select_sim_v.reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
+
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn.softmax(dim=-1)
@@ -265,7 +312,10 @@ class Attention_LoRA(nn.Module):
         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
-        return x
+        if trans_knowledge and train:
+            return x, loss
+        else:
+            return x
     
     def get_matrix(self, task):
         matrix_k = torch.mm(self.lora_B_k[task].weight, self.lora_A_k[task].weight)
@@ -306,8 +356,13 @@ class Block(nn.Module):
         self.ls2 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
         self.drop_path2 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-    def forward(self, x, task, register_hook=False, get_feat=False, get_cur_feat=False, get_x_feat=False):
-        x = x + self.drop_path1(self.ls1(self.attn(self.norm1(x), task, register_hook=register_hook, get_feat=get_feat, get_cur_feat=get_cur_feat, get_x_feat=get_x_feat)))
+    def forward(self, x, task, register_hook=False, get_feat=False, get_cur_feat=False, get_x_feat=False, trans_knowledge=False, train=False):
+        if trans_knowledge and train:
+            temp, loss = self.attn(self.norm1(x), task, register_hook=register_hook, get_feat=get_feat, get_cur_feat=get_cur_feat, get_x_feat=get_x_feat, trans_knowledge=trans_knowledge, train=train)
+            x = x + self.drop_path1(self.ls1(temp))
+            x = x + self.drop_path2(self.ls2(self.mlp(self.norm2(x))))
+            return x, loss
+        x = x + self.drop_path1(self.ls1(self.attn(self.norm1(x), task, register_hook=register_hook, get_feat=get_feat, get_cur_feat=get_cur_feat, get_x_feat=get_x_feat, trans_knowledge=trans_knowledge, train=train)))
         x = x + self.drop_path2(self.ls2(self.mlp(self.norm2(x))))
         return x
 

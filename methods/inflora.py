@@ -99,12 +99,24 @@ class InfLoRA(BaseLearner):
                     param.requires_grad_(True)
                 if "lora_B_v" + "." + str(self._network.module.numtask - 1) in name:
                     param.requires_grad_(True)
+                if "lora_B_trans_k" + "." + str(self._network.module.numtask - 1) in name:
+                    param.requires_grad_(True)
+                if "lora_B_trans_v" + "." + str(self._network.module.numtask - 1) in name:
+                    param.requires_grad_(True)
+                if "keys" in name:
+                    param.requires_grad_(True)
             except:
                 if "classifier_pool" + "." + str(self._network.numtask - 1) in name:
                     param.requires_grad_(True)
                 if "lora_B_k" + "." + str(self._network.numtask - 1) in name:
                     param.requires_grad_(True)
                 if "lora_B_v" + "." + str(self._network.numtask - 1) in name:
+                    param.requires_grad_(True)
+                if "lora_B_trans_k" + "." + str(self._network.numtask - 1) in name:
+                    param.requires_grad_(True)
+                if "lora_B_trans_v" + "." + str(self._network.numtask - 1) in name:
+                    param.requires_grad_(True)
+                if "keys" in name:
                     param.requires_grad_(True)
 
         # Double check
@@ -126,6 +138,8 @@ class InfLoRA(BaseLearner):
                         U, S, V = torch.svd(cur_matrix)
                         module.lora_A_k[self._cur_task].weight.data.copy_(U[:,:module.rank].T/math.sqrt(3))
                         module.lora_A_v[self._cur_task].weight.data.copy_(U[:,:module.rank].T/math.sqrt(3))
+                        module.lora_A_trans_k[self._cur_task].weight.data.copy_(U[:,:module.rank].T/math.sqrt(3))
+                        module.lora_A_trans_v[self._cur_task].weight.data.copy_(U[:,:module.rank].T/math.sqrt(3))
                         module.cur_matrix.zero_()
                         module.n_cur_matrix = 0
             else:
@@ -146,14 +160,19 @@ class InfLoRA(BaseLearner):
                     if isinstance(module, Attention_LoRA):
                         cur_matrix = module.cur_matrix
                         if self.project_type[kk] == 'remove':
+                            cur_matrix_new = torch.mm(self.feature_mat[kk],cur_matrix)
                             cur_matrix = cur_matrix - torch.mm(self.feature_mat[kk],cur_matrix)
                         else:
                             assert self.project_type[kk] == 'retain'
+                            cur_matrix_new = cur_matrix - torch.mm(self.feature_mat[kk],cur_matrix)
                             cur_matrix = torch.mm(self.feature_mat[kk],cur_matrix)
                         # cU, cS, cV = torch.linalg.svd(cur_matrix, full_matrices=False)
                         cU, cS, cV = torch.svd(cur_matrix)
                         module.lora_A_k[self._cur_task].weight.data.copy_(cU[:,:module.rank].T/math.sqrt(3))
                         module.lora_A_v[self._cur_task].weight.data.copy_(cU[:,:module.rank].T/math.sqrt(3))
+                        cU_n, cS_n, cV_n = torch.svd(cur_matrix_new)
+                        module.lora_A_trans_k[self._cur_task].weight.data.copy_(cU_n[:,:module.rank].T/math.sqrt(3))
+                        module.lora_A_trans_v[self._cur_task].weight.data.copy_(cU_n[:,:module.rank].T/math.sqrt(3))
                         module.cur_matrix.zero_()
                         module.n_cur_matrix = 0
                         kk += 1
@@ -222,8 +241,10 @@ class InfLoRA(BaseLearner):
                 inputs = torch.index_select(inputs, 0, mask)
                 targets = torch.index_select(targets, 0, mask)-self._known_classes
 
-                logits = self._network(inputs)['logits']
-                loss = F.cross_entropy(logits, targets)
+                output = self._network(inputs, trans_knowledge=True, train=True)
+                logits = output['logits']
+                prompt_loss = output['prompt_loss']
+                loss = F.cross_entropy(logits, targets) + prompt_loss.sum()
 
                 optimizer.zero_grad()
                 loss.backward()
@@ -242,7 +263,6 @@ class InfLoRA(BaseLearner):
             info = 'Task {}, Epoch {}/{} => Loss {:.3f}, Train_accy {:.2f}'.format(
                 self._cur_task, epoch + 1, self.run_epoch, losses / len(train_loader), train_acc)
             prog_bar.set_description(info)
-
         logging.info(info)
 
 
@@ -265,7 +285,6 @@ class InfLoRA(BaseLearner):
 
     def _evaluate(self, y_pred, y_true):
         ret = {}
-        print(len(y_pred), len(y_true))
         grouped = accuracy(y_pred, y_true, self._known_classes, self.class_num)
         ret['grouped'] = grouped
         ret['top1'] = grouped['total']
@@ -284,9 +303,9 @@ class InfLoRA(BaseLearner):
                 y_true_task.append((targets//self.class_num).cpu())
 
                 if isinstance(self._network, nn.DataParallel):
-                    outputs = self._network.module.interface(inputs)
+                    outputs = self._network.module.interface(inputs, trans_knowledge=True)
                 else:
-                    outputs = self._network.interface(inputs)
+                    outputs = self._network.interface(inputs, trans_knowledge=True)
 
             predicts = torch.topk(outputs, k=self.topk, dim=1, largest=True, sorted=True)[1].view(-1)  # [bs, topk]
             y_pred_task.append((predicts//self.class_num).cpu())
