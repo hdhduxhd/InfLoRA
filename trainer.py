@@ -76,6 +76,22 @@ def _train(args):
         logging.info('CNN top1 curve: {}'.format(cnn_curve['top1']))
         logging.info('CNN top1 with task curve: {}'.format(cnn_curve_with_task['top1']))
         logging.info('CNN top1 task curve: {}'.format(cnn_curve_task['top1']))
+        if args.use_wandb:
+            import wandb
+            # start a new wandb run to track this script
+            wandb.init(
+                # set the wandb project where this run will be logged
+                project="InfLoRA",
+                name="test"
+            )
+            wandb.log({
+                'CNN top1 curve':cnn_accy['top1'],
+                'CNN top1 with task curve':cnn_accy_with_task['top1'],
+                'CNN top1 task curve':cnn_accy_task
+            }, step=1)
+
+    if args.use_wandb:
+        wandb.finish()
 
         # if task >= 3: break
 

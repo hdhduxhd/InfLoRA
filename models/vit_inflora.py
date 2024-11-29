@@ -265,6 +265,7 @@ class Attention_LoRA(nn.Module):
             #     print("x: ", x.max())
             #     print("x_matrix: ", self.x_matrix.max())
         if trans_knowledge:
+            # x_querry = x[:,0,:]
             x_querry = torch.mean(x,dim=1)
             n_k = nn.functional.normalize(self.keys, dim=1)
             q = nn.functional.normalize(x_querry, dim=1).detach()
