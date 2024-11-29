@@ -54,7 +54,7 @@ def _train(args):
     args['class_order'] = data_manager._class_order
     model = factory.get_model(args['model_name'], args)
 
-    cnn_curve, cnn_curve_with_task, nme_curve, cnn_curve_task = {'top1': []}, {'top1': []}, {'top1': []}, {'top1': []}
+    cnn_curve, cnn_curve_with_task, nme_curve, cnn_curve_task, cnn_curve_with_task_on_key = {'top1': []}, {'top1': []}, {'top1': []}, {'top1': []}, {'top1': []}
     for task in range(data_manager.nb_tasks):
         logging.info('All params: {}'.format(count_parameters(model._network)))
         logging.info('Trainable params: {}'.format(count_parameters(model._network, True)))
@@ -63,7 +63,7 @@ def _train(args):
         time_end = time.time()
         logging.info('Time:{}'.format(time_end - time_start))
         time_start = time.time()
-        cnn_accy, cnn_accy_with_task, nme_accy, cnn_accy_task = model.eval_task()
+        cnn_accy, cnn_accy_with_task, nme_accy, cnn_accy_task, cnn_accy_task_keys, cnn_accy_with_task_on_key = model.eval_task()
         time_end = time.time()
         logging.info('Time:{}'.format(time_end - time_start))
         # raise Exception
@@ -76,6 +76,10 @@ def _train(args):
         logging.info('CNN top1 curve: {}'.format(cnn_curve['top1']))
         logging.info('CNN top1 with task curve: {}'.format(cnn_curve_with_task['top1']))
         logging.info('CNN top1 task curve: {}'.format(cnn_curve_task['top1']))
+
+        logging.info('CNN with task on key: {}'.format(cnn_accy_with_task_on_key['grouped']))
+        cnn_curve_with_task_on_key['top1'].append(cnn_accy_with_task_on_key['top1'])
+        logging.info('CNN top1 with task on key curve: {}'.format(cnn_curve_with_task_on_key['top1']))
         if args.use_wandb:
             import wandb
             # start a new wandb run to track this script
@@ -87,8 +91,13 @@ def _train(args):
             wandb.log({
                 'CNN top1 curve':cnn_accy['top1'],
                 'CNN top1 with task curve':cnn_accy_with_task['top1'],
-                'CNN top1 task curve':cnn_accy_task
-            }, step=1)
+                'CNN top1 task curve':cnn_accy_task,
+                'CNN top1 with task on key curve':cnn_accy_with_task_on_key['top1']
+            }, step=task)
+            for i in range(len(cnn_accy_task_keys)):
+                wandb.log({
+                    'CNN top1 task key in layer_{} curve'.format(i):cnn_accy_task_keys[i]['top1']
+                }, step=task)
 
     if args.use_wandb:
         wandb.finish()

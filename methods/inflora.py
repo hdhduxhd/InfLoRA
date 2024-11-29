@@ -295,6 +295,8 @@ class InfLoRA(BaseLearner):
         y_pred, y_true = [], []
         y_pred_with_task = []
         y_pred_task, y_true_task = [], []
+        y_pred_task_keys = []
+        y_pred_with_task_on_key = []
         for _, (_, inputs, targets) in enumerate(loader):
             inputs = inputs.to(self._device)
             targets = targets.to(self._device)
@@ -303,9 +305,14 @@ class InfLoRA(BaseLearner):
                 y_true_task.append((targets//self.class_num).cpu())
 
                 if isinstance(self._network, nn.DataParallel):
-                    outputs = self._network.module.interface(inputs, trans_knowledge=True)
+                    outputs, k_idxs = self._network.module.interface(inputs, trans_knowledge=True)
+                    outputs_with_task_on_key = self._network.module.interface3(inputs, (targets//self.class_num).cpu())
                 else:
-                    outputs = self._network.interface(inputs, trans_knowledge=True)
+                    outputs, k_idxs = self._network.interface(inputs, trans_knowledge=True)
+                    outputs_with_task_on_key = self._network.interface3(inputs, (targets//self.class_num).cpu())
+            y_pred_task_keys.append(torch.cat(k_idxs,dim=0))
+
+            predicts_with_task_on_key = outputs_with_task_on_key.argmax(dim=1)
 
             predicts = torch.topk(outputs, k=self.topk, dim=1, largest=True, sorted=True)[1].view(-1)  # [bs, topk]
             y_pred_task.append((predicts//self.class_num).cpu())
@@ -321,8 +328,9 @@ class InfLoRA(BaseLearner):
             y_pred.append(predicts.cpu().numpy())
             y_pred_with_task.append(predicts_with_task.cpu().numpy())
             y_true.append(targets.cpu().numpy())
+            y_pred_with_task_on_key.append(predicts_with_task_on_key.cpu().numpy())
 
-        return np.concatenate(y_pred), np.concatenate(y_pred_with_task), np.concatenate(y_true), torch.cat(y_pred_task), torch.cat(y_true_task)  # [N, topk]
+        return np.concatenate(y_pred), np.concatenate(y_pred_with_task), np.concatenate(y_true), torch.cat(y_pred_task), torch.cat(y_true_task), torch.cat(y_pred_task_keys,dim=1), np.concatenate(y_pred_with_task_on_key)  # [N, topk]
     
     def test(self, num_task):
         for i in range(num_task):

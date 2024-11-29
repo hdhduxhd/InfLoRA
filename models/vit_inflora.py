@@ -313,8 +313,11 @@ class Attention_LoRA(nn.Module):
         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
-        if trans_knowledge and train:
-            return x, loss
+        if trans_knowledge:
+            if train:
+                return x, loss
+            else:
+                return x, k_idx
         else:
             return x
     
@@ -358,11 +361,17 @@ class Block(nn.Module):
         self.drop_path2 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def forward(self, x, task, register_hook=False, get_feat=False, get_cur_feat=False, get_x_feat=False, trans_knowledge=False, train=False):
-        if trans_knowledge and train:
-            temp, loss = self.attn(self.norm1(x), task, register_hook=register_hook, get_feat=get_feat, get_cur_feat=get_cur_feat, get_x_feat=get_x_feat, trans_knowledge=trans_knowledge, train=train)
-            x = x + self.drop_path1(self.ls1(temp))
-            x = x + self.drop_path2(self.ls2(self.mlp(self.norm2(x))))
-            return x, loss
+        if trans_knowledge:
+            if train:
+                temp, loss = self.attn(self.norm1(x), task, register_hook=register_hook, get_feat=get_feat, get_cur_feat=get_cur_feat, get_x_feat=get_x_feat, trans_knowledge=trans_knowledge, train=train)
+                x = x + self.drop_path1(self.ls1(temp))
+                x = x + self.drop_path2(self.ls2(self.mlp(self.norm2(x))))
+                return x, loss
+            else:
+                temp, k_idx = self.attn(self.norm1(x), task, register_hook=register_hook, get_feat=get_feat, get_cur_feat=get_cur_feat, get_x_feat=get_x_feat, trans_knowledge=trans_knowledge, train=train)
+                x = x + self.drop_path1(self.ls1(temp))
+                x = x + self.drop_path2(self.ls2(self.mlp(self.norm2(x))))
+                return x, k_idx
         x = x + self.drop_path1(self.ls1(self.attn(self.norm1(x), task, register_hook=register_hook, get_feat=get_feat, get_cur_feat=get_cur_feat, get_x_feat=get_x_feat, trans_knowledge=trans_knowledge, train=train)))
         x = x + self.drop_path2(self.ls2(self.mlp(self.norm2(x))))
         return x

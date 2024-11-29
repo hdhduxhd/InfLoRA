@@ -26,15 +26,22 @@ class ViT_lora_co(VisionTransformer):
         x = self.pos_drop(x)
 
         prompt_loss = torch.zeros((1,), requires_grad=True).to(x.device)
+        k_idxs = []
         for i, blk in enumerate(self.blocks):
-            if trans_knowledge and train:
-                x, loss=blk(x, task_id, register_blk==i, get_feat=get_feat, get_cur_feat=get_cur_feat, get_x_feat=get_x_feat, trans_knowledge=trans_knowledge, train=train)
-                prompt_loss+=loss
+            if trans_knowledge:
+                if train:
+                    x, loss=blk(x, task_id, register_blk==i, get_feat=get_feat, get_cur_feat=get_cur_feat, get_x_feat=get_x_feat, trans_knowledge=trans_knowledge, train=train)
+                    prompt_loss+=loss
+                else:
+                    x, k_idx=blk(x, task_id, register_blk==i, get_feat=get_feat, get_cur_feat=get_cur_feat, get_x_feat=get_x_feat, trans_knowledge=trans_knowledge, train=train)
+                    k_idxs.append(k_idx)
             else:
                 x = blk(x, task_id, register_blk==i, get_feat=get_feat, get_cur_feat=get_cur_feat, get_x_feat=get_x_feat, trans_knowledge=trans_knowledge, train=train)
 
         x = self.norm(x)
         
+        if trans_knowledge and not train:
+            return x, k_idxs
         return x, prompt_loss/len(self.blocks)
 
 
@@ -128,7 +135,7 @@ class SiNet(nn.Module):
         }
 
     def interface(self, image, task_id = None, trans_knowledge=False):
-        image_features, _ = self.image_encoder(image, task_id=self.numtask-1 if task_id is None else task_id, trans_knowledge=trans_knowledge, train=False)
+        image_features, k_idxs = self.image_encoder(image, task_id=self.numtask-1 if task_id is None else task_id, trans_knowledge=trans_knowledge, train=False)
 
         image_features = image_features[:,0,:]
         image_features = image_features.view(image_features.size(0),-1)
@@ -138,7 +145,7 @@ class SiNet(nn.Module):
             logits.append(prompt(image_features))
 
         logits = torch.cat(logits,1)
-        return logits
+        return logits, k_idxs
     
     def interface1(self, image, task_ids):
         logits = []
@@ -154,6 +161,24 @@ class SiNet(nn.Module):
 
     def interface2(self, image_features):
 
+        logits = []
+        for prompt in self.classifier_pool[:self.numtask]:
+            logits.append(prompt(image_features))
+
+        logits = torch.cat(logits,1)
+        return logits
+    
+    def interface3(self, image, task_ids):
+        image_features = []
+        for index in range(len(task_ids)):
+            image_feature, _ = self.image_encoder(image[index:index+1], task_id=task_ids[index].item(), trans_knowledge=True, train=True)
+            image_feature = image_feature[:,0,:]
+            image_feature = image_feature.view(image_feature.size(0),-1)
+
+            image_features.append(image_feature)
+
+        image_features = torch.cat(image_features,0)
+        
         logits = []
         for prompt in self.classifier_pool[:self.numtask]:
             logits.append(prompt(image_features))
