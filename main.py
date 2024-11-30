@@ -23,7 +23,7 @@ def setup_parser():
     parser.add_argument('--config', type=str, default='./exps/finetune.json',
                         help='Json file of settings.')
     parser.add_argument('--device', type=str, default='0')
-    parser.add_argument('--use_wandb', action=True, default=False)
+    parser.add_argument('--use_wandb', action='store_true', default=False)
 
     # # optim
     # parser.add_argument('--optim', type=str, default='adam', choices=['adam', 'sgd'])
