@@ -310,7 +310,7 @@ class InfLoRA(BaseLearner):
                 else:
                     outputs, k_idxs = self._network.interface(inputs, trans_knowledge=True)
                     outputs_with_task_on_key = self._network.interface3(inputs, (targets//self.class_num).cpu())
-            y_pred_task_keys.append(torch.cat(k_idxs,dim=0))
+            y_pred_task_keys.append(torch.stack(k_idxs,dim=0).cpu())
 
             predicts_with_task_on_key = outputs_with_task_on_key.argmax(dim=1)
 
@@ -329,7 +329,7 @@ class InfLoRA(BaseLearner):
             y_pred_with_task.append(predicts_with_task.cpu().numpy())
             y_true.append(targets.cpu().numpy())
             y_pred_with_task_on_key.append(predicts_with_task_on_key.cpu().numpy())
-
+            
         return np.concatenate(y_pred), np.concatenate(y_pred_with_task), np.concatenate(y_true), torch.cat(y_pred_task), torch.cat(y_true_task), torch.cat(y_pred_task_keys,dim=1), np.concatenate(y_pred_with_task_on_key)  # [N, topk]
     
     def test(self, num_task):

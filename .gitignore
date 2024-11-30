@@ -1,0 +1,4 @@
+data/
+logs/
+pretrained/
+__pycache__

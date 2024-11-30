@@ -81,7 +81,7 @@ class BaseLearner(object):
         cnn_accy_with_task = self._evaluate(y_pred_with_task, y_true)
         cnn_accy_task = (y_pred_task == y_true_task).sum().item()/len(y_pred_task)
 
-        cnn_accy_task_keys = [(y_pred_task_keys[i] == y_true_task).item()/len(y_true_task) for i in range(y_pred_task_keys.shape[0])]
+        cnn_accy_task_keys = [(y_pred_task_keys[i,:] == y_true_task).sum().item()/len(y_true_task) for i in range(y_pred_task_keys.shape[0])]
         cnn_accy_with_task_on_key = self._evaluate(y_pred_with_task_on_key, y_true)
 
         if hasattr(self, '_class_means'):

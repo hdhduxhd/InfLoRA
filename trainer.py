@@ -14,6 +14,15 @@ def train(args):
     seed_list = copy.deepcopy(args['seed'])
     device = copy.deepcopy(args['device'])
     device = device.split(',')
+    
+    if args['use_wandb']:
+        import wandb
+        # start a new wandb run to track this script
+        wandb.init(
+            # set the wandb project where this run will be logged
+            project="InfLoRA",
+            name="test"
+        )
 
     for seed in seed_list:
         args['seed'] = seed
@@ -80,14 +89,7 @@ def _train(args):
         logging.info('CNN with task on key: {}'.format(cnn_accy_with_task_on_key['grouped']))
         cnn_curve_with_task_on_key['top1'].append(cnn_accy_with_task_on_key['top1'])
         logging.info('CNN top1 with task on key curve: {}'.format(cnn_curve_with_task_on_key['top1']))
-        if args.use_wandb:
-            import wandb
-            # start a new wandb run to track this script
-            wandb.init(
-                # set the wandb project where this run will be logged
-                project="InfLoRA",
-                name="test"
-            )
+        if args['use_wandb']:
             wandb.log({
                 'CNN top1 curve':cnn_accy['top1'],
                 'CNN top1 with task curve':cnn_accy_with_task['top1'],
@@ -99,7 +101,7 @@ def _train(args):
                     'CNN top1 task key in layer_{} curve'.format(i):cnn_accy_task_keys[i]['top1']
                 }, step=task)
 
-    if args.use_wandb:
+    if args['use_wandb']:
         wandb.finish()
 
         # if task >= 3: break
