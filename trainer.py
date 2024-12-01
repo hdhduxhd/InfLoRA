@@ -92,7 +92,7 @@ def _train(args):
         cnn_curve_with_task_on_key['top1'].append(cnn_accy_with_task_on_key['top1'])
         logging.info('CNN top1 with task on key curve: {}'.format(cnn_curve_with_task_on_key['top1']))
         for i in range(len(cnn_accy_task_keys)):
-            cnn_curve_task_keys[i].append(cnn_accy_task_keys[i]['top1'])
+            cnn_curve_task_keys[i].append(cnn_accy_task_keys[i])
             logging.info('CNN top1 task key in layer_{} curve: {}'.format(i, cnn_curve_task_keys[i]))
         if args['use_wandb']:
             wandb.log({
@@ -103,7 +103,7 @@ def _train(args):
             }, step=task)
             for i in range(len(cnn_accy_task_keys)):
                 wandb.log({
-                    'CNN top1 task key in layer_{} curve'.format(i):cnn_accy_task_keys[i]['top1']
+                    'CNN top1 task key in layer_{} curve'.format(i):cnn_accy_task_keys[i]
                 }, step=task)
 
     if args['use_wandb']:
