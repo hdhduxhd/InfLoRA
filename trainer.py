@@ -8,7 +8,7 @@ import torch
 from utils import factory
 from utils.data_manager import DataManager
 from utils.toolkit import count_parameters
-
+import wandb
 
 def train(args):
     seed_list = copy.deepcopy(args['seed'])
@@ -16,7 +16,6 @@ def train(args):
     device = device.split(',')
     
     if args['use_wandb']:
-        import wandb
         os.environ["WANDB_MODE"] = "offline"
         # start a new wandb run to track this script
         wandb.init(
