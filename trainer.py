@@ -17,6 +17,7 @@ def train(args):
     
     if args['use_wandb']:
         import wandb
+        os.environ["WANDB_MODE"] = "offline"
         # start a new wandb run to track this script
         wandb.init(
             # set the wandb project where this run will be logged
@@ -64,6 +65,7 @@ def _train(args):
     model = factory.get_model(args['model_name'], args)
 
     cnn_curve, cnn_curve_with_task, nme_curve, cnn_curve_task, cnn_curve_with_task_on_key = {'top1': []}, {'top1': []}, {'top1': []}, {'top1': []}, {'top1': []}
+    cnn_curve_task_keys = [[] for _ in range(12)]
     for task in range(data_manager.nb_tasks):
         logging.info('All params: {}'.format(count_parameters(model._network)))
         logging.info('Trainable params: {}'.format(count_parameters(model._network, True)))
@@ -89,6 +91,9 @@ def _train(args):
         logging.info('CNN with task on key: {}'.format(cnn_accy_with_task_on_key['grouped']))
         cnn_curve_with_task_on_key['top1'].append(cnn_accy_with_task_on_key['top1'])
         logging.info('CNN top1 with task on key curve: {}'.format(cnn_curve_with_task_on_key['top1']))
+        for i in range(len(cnn_accy_task_keys)):
+            cnn_curve_task_keys[i].append(cnn_accy_task_keys[i]['top1'])
+            logging.info('CNN top1 task key in layer_{} curve: {}'.format(i, cnn_curve_task_keys[i]))
         if args['use_wandb']:
             wandb.log({
                 'CNN top1 curve':cnn_accy['top1'],

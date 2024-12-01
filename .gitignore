@@ -2,3 +2,4 @@ data/
 logs/
 pretrained/
 __pycache__
+wandb/
