@@ -2,5 +2,4 @@ data/
 logs/
 pretrained/
 **/__pycache__/
-*.pyc
 wandb/
