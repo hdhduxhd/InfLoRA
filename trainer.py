@@ -105,12 +105,13 @@ def _train(args):
                     'CNN top1 task key in layer_{} curve'.format(i):cnn_accy_task_keys[i]
                 }, step=task)
 
-    if args['use_wandb']:
-        wandb.finish()
 
         # if task >= 3: break
 
-        # torch.save(model._network.state_dict(), os.path.join(logfilename, "task_{}.pth".format(int(task))))
+        torch.save(model._network.state_dict(), os.path.join(logfilename, "task_{}.pth".format(int(task))))
+
+    if args['use_wandb']:
+        wandb.finish()
 
 def _set_device(args):
     device_type = args['device']

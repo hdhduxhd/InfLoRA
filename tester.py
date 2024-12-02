@@ -86,7 +86,6 @@ def _test(args):
 
         # if task >= 3: break
 
-        # torch.save(model._network.state_dict(), os.path.join(logfilename, "task_{}.pth".format(int(task))))
 
 def _set_device(args):
     device_type = args['device']
