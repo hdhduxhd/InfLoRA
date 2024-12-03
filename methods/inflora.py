@@ -306,11 +306,14 @@ class InfLoRA(BaseLearner):
 
                 if isinstance(self._network, nn.DataParallel):
                     outputs, k_idxs = self._network.module.interface(inputs, trans_knowledge=True)
+#                     outputs, _ = self._network.module.interface(inputs, trans_knowledge=False)
                     outputs_with_task_on_key = self._network.module.interface3(inputs, (targets//self.class_num).cpu())
                 else:
                     outputs, k_idxs = self._network.interface(inputs, trans_knowledge=True)
+#                     outputs, _ = self._network.interface(inputs, trans_knowledge=False)
                     outputs_with_task_on_key = self._network.interface3(inputs, (targets//self.class_num).cpu())
             y_pred_task_keys.append(torch.stack(k_idxs,dim=0).cpu())
+#             y_pred_task_keys.append(torch.stack([(targets//self.class_num).cpu() for _ in range(12)],dim=0).cpu())
 
             predicts_with_task_on_key = outputs_with_task_on_key.argmax(dim=1)
 
@@ -332,7 +335,12 @@ class InfLoRA(BaseLearner):
             
         return np.concatenate(y_pred), np.concatenate(y_pred_with_task), np.concatenate(y_true), torch.cat(y_pred_task), torch.cat(y_true_task), torch.cat(y_pred_task_keys,dim=1), np.concatenate(y_pred_with_task_on_key)  # [N, topk]
     
-    def test(self, num_task):
+    def test(self, num_task, data_manager):
+        test_dataset = data_manager.get_dataset(np.arange(0, 200), source='test', mode='test')
+        self.test_loader = DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers)
+        self._network.to(self._device)
+#         if len(self._multiple_gpus) > 1:
+#             self._network = nn.DataParallel(self._network, self._multiple_gpus)
         for i in range(num_task):
             self._network.update_fc(self._total_classes)
         return self.eval_task()
