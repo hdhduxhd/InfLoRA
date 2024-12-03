@@ -18,31 +18,31 @@ class ViT_lora_co(VisionTransformer):
             embed_layer=embed_layer, norm_layer=norm_layer, act_layer=act_layer, block_fn=block_fn, n_tasks=n_tasks, rank=rank)
 
 
-#     def forward(self, x, task_id, register_blk=-1, get_feat=False, get_cur_feat=False, get_x_feat=False, trans_knowledge=False, train=False):
-#         x = self.patch_embed(x)
-#         x = torch.cat((self.cls_token.expand(x.shape[0], -1, -1), x), dim=1)
+    # def forward(self, x, task_id, register_blk=-1, get_feat=False, get_cur_feat=False, get_x_feat=False, trans_knowledge=False, train=False):
+    #     x = self.patch_embed(x)
+    #     x = torch.cat((self.cls_token.expand(x.shape[0], -1, -1), x), dim=1)
 
-#         x = x + self.pos_embed[:,:x.size(1),:]
-#         x = self.pos_drop(x)
+    #     x = x + self.pos_embed[:,:x.size(1),:]
+    #     x = self.pos_drop(x)
 
-#         prompt_loss = torch.zeros((1,), requires_grad=True).to(x.device)
-#         k_idxs = []
-#         for i, blk in enumerate(self.blocks):
-#             if trans_knowledge:
-#                 if train:
-#                     x, loss=blk(x, task_id, register_blk==i, get_feat=get_feat, get_cur_feat=get_cur_feat, get_x_feat=get_x_feat, trans_knowledge=trans_knowledge, train=train)
-#                     prompt_loss+=loss
-#                 else:
-#                     x, k_idx=blk(x, task_id, register_blk==i, get_feat=get_feat, get_cur_feat=get_cur_feat, get_x_feat=get_x_feat, trans_knowledge=trans_knowledge, train=train)
-#                     k_idxs.append(k_idx)
-#             else:
-#                 x = blk(x, task_id, register_blk==i, get_feat=get_feat, get_cur_feat=get_cur_feat, get_x_feat=get_x_feat, trans_knowledge=trans_knowledge, train=train)
+    #     prompt_loss = torch.zeros((1,), requires_grad=True).to(x.device)
+    #     k_idxs = []
+    #     for i, blk in enumerate(self.blocks):
+    #         if trans_knowledge:
+    #             if train:
+    #                 x, loss=blk(x, task_id, register_blk==i, get_feat=get_feat, get_cur_feat=get_cur_feat, get_x_feat=get_x_feat, trans_knowledge=trans_knowledge, train=train)
+    #                 prompt_loss+=loss
+    #             else:
+    #                 x, k_idx=blk(x, task_id, register_blk==i, get_feat=get_feat, get_cur_feat=get_cur_feat, get_x_feat=get_x_feat, trans_knowledge=trans_knowledge, train=train)
+    #                 k_idxs.append(k_idx)
+    #         else:
+    #             x = blk(x, task_id, register_blk==i, get_feat=get_feat, get_cur_feat=get_cur_feat, get_x_feat=get_x_feat, trans_knowledge=trans_knowledge, train=train)
 
-#         x = self.norm(x)
+    #     x = self.norm(x)
         
-#         if trans_knowledge and not train:
-#             return x, k_idxs
-#         return x, prompt_loss/len(self.blocks)
+    #     if trans_knowledge and not train:
+    #         return x, k_idxs
+    #     return x, prompt_loss/len(self.blocks)
 
     def forward(self, x, task_id, register_blk=-1, get_feat=False, get_cur_feat=False, get_x_feat=False, trans_knowledge=False, train=False):
         x = self.patch_embed(x)
