@@ -105,6 +105,7 @@ class InfLoRA(BaseLearner):
                     param.requires_grad_(True)
                 if "keys" in name:
                     param.requires_grad_(True)
+
             except:
                 if "classifier_pool" + "." + str(self._network.numtask - 1) in name:
                     param.requires_grad_(True)
@@ -308,13 +309,13 @@ class InfLoRA(BaseLearner):
                     outputs, k_idxs = self._network.module.interface(inputs, trans_knowledge=True)
 #                     outputs, _ = self._network.module.interface(inputs, trans_knowledge=False)
                     predicts = torch.topk(outputs, k=self.topk, dim=1, largest=True, sorted=True)[1].view(-1)  # [bs, topk]
-                    outputs_with_task_on_key = self._network.module.interface3(inputs, (predicts//self.class_num).squeeze(1).cpu())
+                    outputs_with_task_on_key = self._network.module.interface3(inputs, (predicts//self.class_num).cpu())
                     # outputs_with_task_on_key = self._network.module.interface3(inputs, (targets//self.class_num).cpu())
                 else:
                     outputs, k_idxs = self._network.interface(inputs, trans_knowledge=True)
 #                     outputs, _ = self._network.interface(inputs, trans_knowledge=False)
                     predicts = torch.topk(outputs, k=self.topk, dim=1, largest=True, sorted=True)[1].view(-1)  # [bs, topk]
-                    outputs_with_task_on_key = self._network.interface3(inputs, (predicts//self.class_num).squeeze(1).cpu())
+                    outputs_with_task_on_key = self._network.interface3(inputs, (predicts//self.class_num).cpu())
                     # outputs_with_task_on_key = self._network.interface3(inputs, (targets//self.class_num).cpu())
             y_pred_task_keys.append(torch.stack(k_idxs,dim=0).cpu())
 #             y_pred_task_keys.append(torch.stack([(targets//self.class_num).cpu() for _ in range(12)],dim=0).cpu())

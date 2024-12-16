@@ -21,7 +21,7 @@ def train(args):
         wandb.init(
             # set the wandb project where this run will be logged
             project="InfLoRA",
-            name="last_layer_KF_use_pred_id"
+            name="last_layer_KF_contrast"
         )
 
     for seed in seed_list:

@@ -201,6 +201,7 @@ class Attention_LoRA(nn.Module):
         self.x_matrix = torch.zeros(dim, dim)
 
         self.keys = nn.Parameter(torch.FloatTensor(n_tasks, self.dim), requires_grad=True)
+        # self.keys = [nn.Parameter(torch.FloatTensor(self.dim), requires_grad=True) for _ in range(n_tasks)]
         self.lora_A_trans_k = nn.ModuleList([nn.Linear(dim, r, bias=False) for _ in range(n_tasks)])
         self.lora_B_trans_k = nn.ModuleList([nn.Linear(r, dim, bias=False) for _ in range(n_tasks)])
         self.lora_A_trans_v = nn.ModuleList([nn.Linear(dim, r, bias=False) for _ in range(n_tasks)])
@@ -272,7 +273,13 @@ class Attention_LoRA(nn.Module):
             cos_sim = torch.einsum('bj,kj->bk', q, n_k)
             if train:
                 k_idx = task
-                loss = (1.0 - cos_sim[:,task]).mean()
+                if task == 0:
+                    loss = (1.0 - cos_sim[:,task]).mean()
+                else:
+                    previous_n_k = n_k.detach()
+                    previous_cos = torch.einsum('bj,kj->bk', q, previous_n_k)
+                    previous_cos = previous_cos[:,:task]
+                    loss = (1.0 - cos_sim[:,task] + 0.5*torch.square(previous_cos).mean(dim=1)).mean()
             else:
                 top_k = torch.topk(cos_sim, 1, dim=1)
                 k_idx = top_k.indices.squeeze(1)
