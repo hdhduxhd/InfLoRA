@@ -583,7 +583,9 @@ class InfLoRA_CA(BaseLearner):
                 vectors, _ = self._extract_vectors(idx_loader)
                 class_mean = np.mean(vectors, axis=0)
                 # class_cov = np.cov(vectors.T)
-                class_cov = torch.cov(torch.tensor(vectors, dtype=torch.float64).T)
+                # class_cov = torch.cov(torch.tensor(vectors, dtype=torch.float64).T)
+                centered_vectors = vectors - class_mean
+                class_cov = torch.matmul(centered_vectors.T, centered_vectors) / (centered_vectors.size(0) - 1)
                 if check_diff:
                     log_info = "cls {} sim: {}".format(class_idx, torch.cosine_similarity(torch.tensor(self._class_means[class_idx, :]).unsqueeze(0), torch.tensor(class_mean).unsqueeze(0)).item())
                     logging.info(log_info)
@@ -601,7 +603,9 @@ class InfLoRA_CA(BaseLearner):
 
                 class_mean = np.mean(vectors, axis=0)
                 # class_cov = np.cov(vectors.T)
-                class_cov = torch.cov(torch.tensor(vectors, dtype=torch.float64).T)+torch.eye(class_mean.shape[-1])*1e-5
+                # class_cov = torch.cov(torch.tensor(vectors, dtype=torch.float64).T)+torch.eye(class_mean.shape[-1])*1e-5
+                centered_vectors = vectors - class_mean
+                class_cov = torch.matmul(centered_vectors.T, centered_vectors) / (centered_vectors.size(0) - 1)+torch.eye(class_mean.shape[-1])*1e-5
                 self._class_means[class_idx, :] = class_mean
                 self._class_covs[class_idx, ...] = class_cov            
 
@@ -615,7 +619,8 @@ class InfLoRA_CA(BaseLearner):
 
             class_mean = np.mean(vectors, axis=0)
             # class_cov = np.cov(vectors.T)
-            class_cov = torch.cov(torch.tensor(vectors, dtype=torch.float64).T)+torch.eye(class_mean.shape[-1])*1e-4
+            centered_vectors = vectors - class_mean
+            class_cov = torch.matmul(centered_vectors.T, centered_vectors) / (centered_vectors.size(0) - 1)+torch.eye(class_mean.shape[-1])*1e-4
 
             if check_diff:
                 log_info = "cls {} sim: {}".format(class_idx, torch.cosine_similarity(torch.tensor(self._class_means[class_idx, :]).unsqueeze(0), torch.tensor(class_mean).unsqueeze(0)).item())
