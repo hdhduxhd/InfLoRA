@@ -273,13 +273,7 @@ class Attention_LoRA(nn.Module):
             cos_sim = torch.einsum('bj,kj->bk', q, n_k)
             if train:
                 k_idx = task
-                if task == 0:
-                    loss = (1.0 - cos_sim[:,task]).mean()
-                else:
-                    previous_n_k = n_k.detach()
-                    previous_cos = torch.einsum('bj,kj->bk', q, previous_n_k)
-                    previous_cos = previous_cos[:,:task]
-                    loss = (1.0 - cos_sim[:,task] + 0.5*torch.square(previous_cos).mean(dim=1)).mean()
+                loss = (1.0 - cos_sim[:,task]).mean()
             else:
                 top_k = torch.topk(cos_sim, 1, dim=1)
                 k_idx = top_k.indices.squeeze(1)

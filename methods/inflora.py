@@ -336,7 +336,35 @@ class InfLoRA(BaseLearner):
             y_pred_with_task.append(predicts_with_task.cpu().numpy())
             y_true.append(targets.cpu().numpy())
             y_pred_with_task_on_key.append(predicts_with_task_on_key.cpu().numpy())
-            
+
+        import matplotlib.pyplot as plt
+        from sklearn.metrics import confusion_matrix
+
+        cm = confusion_matrix(y_true=torch.cat(y_true_task).cpu().numpy(), y_pred=torch.cat(y_pred_task).cpu().numpy(), normalize='true')
+        plt.figure(figsize=(15, 15))
+        plt.imshow(cm, cmap='Blues')
+        plt.title("task prediction")
+        plt.xlabel("Predict label")
+        plt.ylabel("Truth label")
+        label_name = [i for i in range(20)]
+        plt.yticks(range(label_name.__len__()), label_name)
+        plt.xticks(range(label_name.__len__()), label_name, rotation=45)
+
+        plt.tight_layout()
+
+        plt.colorbar()
+
+        for i in range(label_name.__len__()):
+            for j in range(label_name.__len__()):
+                color = (1, 1, 1) if i == j else (0, 0, 0)  # 对角线字体白色，其他黑色
+                value = float(format('%.2f' % cm[j, i]))
+                plt.text(i, j, value, verticalalignment='center', horizontalalignment='center', color=color)
+
+        # plt.show()
+        pdf_save_path = "confusion_matrix.png"
+        if not pdf_save_path is None:
+            plt.savefig(pdf_save_path, bbox_inches='tight', dpi=300)
+        
         return np.concatenate(y_pred), np.concatenate(y_pred_with_task), np.concatenate(y_true), torch.cat(y_pred_task), torch.cat(y_true_task), torch.cat(y_pred_task_keys,dim=1), np.concatenate(y_pred_with_task_on_key)  # [N, topk]
     
     def test(self, num_task, data_manager):
